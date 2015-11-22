@@ -1,0 +1,170 @@
+---
+title: "Practical machine learning assignment write up"
+author: "lee ui ryeong"
+date: "2015년 11월 21일"
+output: 
+  html_document: 
+    keep_md: yes
+    toc: yes
+---
+
+#Plactical Machine Learning-Project Write up
+##Introduction
+ The goal of this project is to predict the manners what smart advice user did. The target variables is 'classe' variable of training set. The 'classe' variable has 5 categories A, B, C, D and E. This report shows that how predict target variable predicted. we used 3 machine learning algorithms, RandomForest, Linear discriminant analysis and Naive Bayes. After Buiding 3 prediction model,
+we choose the model which has the highest accuracy rate.
+
+##About Data
+
+The dataset which used in this project is consist of with 5 classes (sitting-down, standing-up, standing, walking, and sitting) collected on 8 hours of activities of 4 healthy subjects. also this dataset was established with a baseline performance index.
+
+Read more: http://groupware.les.inf.puc-rio.br/har#ixzz3s6Wpactm
+
+##Data resource
+
+-The trining set is available here :
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+-The test set is available here :
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+
+
+
+##Data loading
+```{r}
+setwd("E:/Bigdata/Practical machine learning")
+Training <-read.csv("pml-training.csv",na.strings=c("NA","#DIV/0!",""))
+```
+
+##Looking for Data structure
+```{r}
+str(Training, list.len=15)
+```
+
+##Drop variables with NA
+In this step, we will clean the data and get rid of observations with missing values as well as meaningless variables and time-related variables.
+```{r}
+
+isNA <- apply(Training, 2, function(x) { sum(is.na(x)) })
+validTrain <- subset(Training[, which(isNA == 0)], 
+                    select=-c(X, user_name, new_window, num_window,                                           raw_timestamp_part_1,
+                              raw_timestamp_part_2, cvtd_timestamp))
+dim(validTrain)
+names(validTrain)
+```
+
+
+##Partioning the dataset into training set and test set
+
+Before we build a prediction model, we partion the training set into two for cross validation purposes. We subsample 60% of the set for training purposes (actual model building), and subsample the 40% of trining set that are validation set,evaluation and accuracy measurement. Caret
+
+```{r}
+library(caret)
+inTrain <- createDataPartition(y=validTrain$classe, p=0.6, list=FALSE)
+Training <- validTrain[inTrain, ]
+Testing <- validTrain[-inTrain, ]
+dim(Training)
+
+```
+
+##Buidling Prediction Model
+##Random Forest
+At first,The prediction Model was generated for training set using RandomForest algorithm. 
+
+```{r}
+set.seed(12345)
+Cvctrl<-trainControl(method="cv", number=5, allowParallel=T, verbose=T)
+modFit <- train(classe~.,data=Training,method="rf",prox=TRUE,trControl=Cvctrl
+                ,verbose=F)
+```
+
+###How accuracy model are?
+confusionMatrix() function shows that how prediction model is accuracy.
+By using 53 predictors for five classes using cross-validation at a 5-fold an accuracy of 99.07% with a 95% CI [0.9883-0.9927] was achieved accompanied by a Kappa value of 0.9882.
+
+```{r}
+RFpredict <- predict(modFit, newdata=Testing)
+confusionMatrix(RFpredict,Testing$classe)
+```
+
+##Linear Discriminant Analysis
+At first,The prediction Model was generated for training set using linear discriminant analysis algorithm. 
+
+
+```{r}
+set.seed(12345)
+Cvctrl<-trainControl(method="cv", number=5, allowParallel=T, verbose=T)
+LDAmodFit <- train(classe~ .,data=Training,method="lda",prox=T,
+                   trControl=Cvctrl,verbose=F)
+
+```
+
+###How accuracy model are?
+confusionMatrix() function shows that how prediction model is accuracy.
+By using 53 predictors for five classes using cross-validation at a 5-fold an accuracy of 69.7% with a 95% CI [0.6874-0.7078] was achieved accompanied by a Kappa value of 0.617.
+
+```{r}
+LDApredict <- predict(LDAmodFit, newdata=Testing)
+confusionMatrix(LDApredict,Testing$classe)
+```
+
+
+##Naive Bayes 
+Third,The prediction Model was generated for training set using naive bayes  algorithm. To using the naive bayes, we have to install 'kalR' packages.
+
+```{r}
+library(klaR)
+set.seed(12345)
+Cvctrl<-trainControl(method="cv", number=5, allowParallel=T, verbose=T)
+NBmodFit <- train(classe~ .,data=Training,method="nb",prox=T, trControl=Cvctrl,
+                verbose=F)
+
+```
+
+###How accuracy model are?
+confusionMatrix() function shows that how prediction model is accuracy.
+By using 53 predictors for five classes using cross-validation at a 5-fold an accuracy of 75.4% with a 95% CI [0.7451-0.7643] was achieved accompanied by a Kappa value of 0.6915.
+
+```{r}
+NBpredict <- predict(NBmodFit, newdata=Testing)
+confusionMatrix(NBpredict,Testing$classe)
+```
+
+##Conclusion 
+In conclusion, RandomForest algorithm has the most accurative rate comparing with other two models, therfore, It is the best choice that applying RF model to final Testing set. 
+
+##Testing set preprocessing
+After buiding prediction model, we have to apply prediction model to test set(not a validation set).  
+```{r}
+Finaltesting<-read.csv("pml-testing.csv",na.strings=c("NA","#DIV/0!",""))
+isNA <- apply(Finaltesting, 2, function(x) { sum(is.na(x)) })
+Finaltesting <- subset(Finaltesting[, which(isNA == 0)], 
+                    select=-c(X, user_name, new_window, num_window,                                    raw_timestamp_part_1,
+                      raw_timestamp_part_2, cvtd_timestamp))
+
+Finalprediction <- predict(modFit, newdata=Finaltesting)
+Finaltesting$classe <- Finalprediction
+```
+
+##Submission
+The below script was used to obtain 20 text files which have the target value predicted from prediction model. Each text files will be submitted to submission assignment.
+```{r}
+answers = Finaltesting$classe
+
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(answers)
+```
+
+
+
+
+
